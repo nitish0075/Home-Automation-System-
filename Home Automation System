@@ -1,0 +1,149 @@
+// by using arduino and ethernet sheild we an creat a efficient home automation system 
+  hardware compnents are : 
+- A DHT11 temperature/humidity sensor.
+- An Ethernet Shield (could be Ethernet Module).
+- Arduino.
+- IR receiver.
+- 2 channels relay module. // 
+
+
+
+
+#include <IRremote.h>
+#include <IRremoteInt.h>
+
+#include <DHT.h>
+#include <LiquidCrystal.h>
+#include <SPI.h>
+#include <Ethernet.h>
+
+#define PIR A0
+#define RELAY1 A1
+#define RELAY2 A2
+#define IR A3
+#define SENS 9
+#define TEMP_CONS "Temp: "
+#define HUM_CONS "Hum: "
+
+byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED};
+const String DHTErrors[] = {"CERROR!", "TERROR!", "UERROR!"};
+
+dht dhtSens;
+IRrecv irrecv(IR);
+decode_results results;
+LiquidCrystal lcd(2, 3, 5, 6, 7, 8);
+IPAddress ip(192, 168, 0, 177);
+EthernetClient client;
+
+void setup()
+{
+  Serial.begin(9600);
+  lcd.begin(16, 2);
+  pinMode(PIR, INPUT);
+  pinMode(IR, INPUT);
+  pinMode(RELAY1, OUTPUT);
+  pinMode(RELAY2, OUTPUT);
+
+  if (Ethernet.begin(mac) == 0)
+  {
+    Serial.println("Failed to configure Ethernet using DHCP");
+    Ethernet.begin(mac, ip);
+  }
+  else {
+    printIPAddress();
+  }
+
+  irrecv.enableIRIn();
+}
+
+void loop()
+{
+  if (irrecv.decode(&results)) 
+  {
+    
+    irrecv.resume();
+  }
+
+  switch(results.value)
+  {
+    case 3249208323:
+      digitalWrite(RELAY1, HIGH);
+      break;
+    case 3249193533:
+      digitalWrite(RELAY2, HIGH);
+      break;
+  }
+  
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(TEMP_CONS);
+  lcd.setCursor(0, 1);
+  lcd.print(HUM_CONS);
+  checkDHT();
+  checkPIR();
+  
+  delay(500);
+}
+
+void checkDHT()
+{
+  int check = dhtSens.read11(SENS);
+  
+  switch(check)
+  {
+    case DHTLIB_OK:
+      printDHTValues();
+      break;
+    case DHTLIB_ERROR_CHECKSUM:
+      printDHTError(0);
+      break;
+    case DHTLIB_ERROR_TIMEOUT:
+      printDHTError(1);
+      break;
+    default:
+      printDHTError(2);
+      break;
+  }
+}
+
+void printDHTValues()
+{
+  float hum = dhtSens.humidity;
+  float temp = dhtSens.temperature;
+  
+  lcd.setCursor(6, 0);
+  lcd.print(temp, 0);
+  lcd.print((char) 223);
+  lcd.setCursor(5, 1);
+  lcd.print(hum, 0);
+  lcd.print((char) 37);
+}
+
+void printDHTError(int errNo)
+{
+  lcd.setCursor(6, 0);
+  lcd.print(DHTErrors[errNo]);
+  lcd.setCursor(5, 1);
+  lcd.print(DHTErrors[errNo]);
+}
+
+void checkPIR()
+{
+  if (digitalRead(PIR) == HIGH) {
+    Serial.println("Someone is in the room...");
+  } else {
+    Serial.println("The room is empty.");
+  }
+}
+
+void printIPAddress()
+{
+  Serial.print("My IP address: ");
+  for (byte thisByte = 0; thisByte < 4; thisByte++)
+  {
+    Serial.print(Ethernet.localIP()[thisByte], DEC);
+    Serial.print(".");
+  }
+
+  Serial.println();
+}
